@@ -1,0 +1,20 @@
+schema: mcpg.dev/plugin/v1
+id: dev.mcpg.policy.opa
+name: OPA Policy Engine
+license: BUSL-1.1
+description: |
+  Open Policy Agent `policy_engine` plugin. Supports two
+  modes (`mode: remote | embedded`): remote dispatches evaluations to
+  a standalone OPA server via the REST `Data` API
+  (`POST /v1/data/<package>`); embedded evaluates compiled rego
+  in-process via wasmtime from a local policy bundle. OPA 404 maps to
+  `NotApplicable` ("engine declines"); all other failures fail closed
+  to `Deny`.
+class: policy_engine
+runtime: native-cdylib-v1
+protocol_version: "1.0"
+required_capabilities:
+  # Needed for `mode: remote` (HTTP/HTTPS to the OPA server).
+  # `mode: embedded` evaluates a local bundle in-process and needs
+  # no egress, but the capability is declared once for both modes.
+  - network_outbound

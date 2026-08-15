@@ -1,0 +1,60 @@
+[package]
+name = "mcpg-plugin-policy-opa"
+version = "0.1.0-alpha.15"
+license = "BUSL-1.1"
+edition = "2024"
+description = "OPA-backed policy_engine plugin (dev.mcpg.policy.opa, v0.2 remote + embedded WASM)"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+mcpg-plugin-protocol = { git = "https://github.com/mcpg-dev/mcpg-plugin-protocol", tag = "v0.1.0-beta.13", version = "=0.1.0-beta.13" }
+mcpg-cluster-api = { git = "https://github.com/mcpg-dev/mcpg-cluster-api", tag = "v0.1.0-beta.13", version = "=0.1.0-beta.13" }
+# `static-firstparty` exposes
+# `HostHandle::from_services` for in-process construction in tests
+# without affecting the cdylib build path.
+mcpg-plugin-sdk = { git = "https://github.com/mcpg-dev/mcpg-plugin-sdk", tag = "v0.1.0-beta.13", version = "=0.1.0-beta.13", features = ["static-firstparty"] }
+mcpg-bundle-reload = { git = "https://github.com/mcpg-dev/mcpg-bundle-reload", tag = "v0.1.0-beta.13", version = "=0.1.0-beta.13", default-features = false }
+# `cluster.publish` takes a `Bytes` payload. Pulled in directly for
+# the policies-loaded heartbeat publish on plugin startup.
+bytes = "1"
+metrics = "0.24"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "macros", "sync", "fs"] }
+sha2 = "0.10"  # stable identifier for `policy_version.hash`
+
+# Embedded WASM mode (v0.2 sprint 4). `opa-wasm` wraps OPA's
+# WASM ABI (opa_malloc / opa_eval_ctx_* / opa_json_dump etc.) and
+# re-exports the exact wasmtime version it builds against. The
+# plugin uses that re-export rather than depending on wasmtime
+# directly — this avoids the diamond-dep mismatch where two
+# separate wasmtime crate instances produce incompatible trait
+# implementations.
+opa-wasm = { version = "0.2", default-features = false, features = ["fast"] }
+
+[dev-dependencies]
+testcontainers = { version = "0.27", features = ["blocking"] }
+
+# Direct reqwest for fixture seeding — we PUT rego policies into
+# OPA via its REST `Policies` API before exercising the plugin.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking"] }
+# Recorder-based HostHandle integration tests
+# need the host-side `HostServices` trait to build a test double.
+
+async-trait = "0.1"
+
+[features]
+default = ["cdylib-export"]
+cdylib-export = []
+integration-tests = []
+# Declared so the SDK's `declare_policy_engine_plugin!` `build_static`
+# accessor (gated `#[cfg(feature = "static-firstparty")]`) does not
+# trigger `unexpected_cfgs` in consumer compilation. Empty: this plugin
+# is consumed as a cdylib, not via the static-firstparty fast path.
+static-firstparty = []
