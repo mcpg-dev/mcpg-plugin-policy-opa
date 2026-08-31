@@ -72,11 +72,14 @@ impl OpaClient {
     /// Trait contract is "no Result" so failures get encoded as
     /// Deny up the stack — `policy_version` is supplied by the
     /// caller so an early Deny still carries the audit stamp.
+    // Boxed Err: `PolicyDecision` is a wide struct and this Result
+    // rides through every eval; clippy's result_large_err is right
+    // that the happy path shouldn't carry it by value.
     pub(crate) async fn evaluate_raw(
         &self,
         input: serde_json::Value,
         policy_version_hash: &str,
-    ) -> Result<serde_json::Value, PolicyDecision> {
+    ) -> Result<serde_json::Value, Box<PolicyDecision>> {
         let body = serde_json::json!({ "input": input });
         let send = self.http.post(&self.data_url).json(&body).send();
 
@@ -88,17 +91,20 @@ impl OpaClient {
                     error = %e,
                     "opa policy: HTTP error during evaluate"
                 );
-                return Err(PolicyDecision::deny(
+                return Err(Box::new(PolicyDecision::deny(
                     format!("opa remote error: {e}"),
                     policy_version_hash,
-                ));
+                )));
             }
             Err(_) => {
                 tracing::warn!(
                     url = %self.data_url,
                     "opa policy: timeout"
                 );
-                return Err(PolicyDecision::deny("opa timeout", policy_version_hash));
+                return Err(Box::new(PolicyDecision::deny(
+                    "opa timeout",
+                    policy_version_hash,
+                )));
             }
         };
 
@@ -117,12 +123,14 @@ impl OpaClient {
             // default). That maps to NotApplicable so
             // the engine declines cleanly.
             if status == StatusCode::NOT_FOUND {
-                return Err(PolicyDecision::not_applicable(policy_version_hash));
+                return Err(Box::new(PolicyDecision::not_applicable(
+                    policy_version_hash,
+                )));
             }
-            return Err(PolicyDecision::deny(
+            return Err(Box::new(PolicyDecision::deny(
                 format!("opa remote error: HTTP {status}"),
                 policy_version_hash,
-            ));
+            )));
         }
 
         let parsed: DataResponse = match serde_json::from_str(&body) {
@@ -134,10 +142,10 @@ impl OpaClient {
                     body_snippet = %body.chars().take(200).collect::<String>(),
                     "opa policy: response decode"
                 );
-                return Err(PolicyDecision::deny(
+                return Err(Box::new(PolicyDecision::deny(
                     format!("opa response decode: {e}"),
                     policy_version_hash,
-                ));
+                )));
             }
         };
 

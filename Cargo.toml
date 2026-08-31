@@ -1,6 +1,6 @@
 [package]
 name = "mcpg-plugin-policy-opa"
-version = "0.1.0-alpha.20"
+version = "0.1.0-alpha.21"
 license = "BUSL-1.1"
 edition = "2024"
 description = "OPA-backed policy_engine plugin (dev.mcpg.policy.opa, v0.2 remote + embedded WASM)"

@@ -781,7 +781,7 @@ impl OpaPolicyPlugin {
                 });
                 match raw {
                     Ok(result) => decision::parse_decision(result, &version_hash),
-                    Err(decision) => decision,
+                    Err(decision) => *decision,
                 }
             }
             Backend::Embedded(bundle) => {
