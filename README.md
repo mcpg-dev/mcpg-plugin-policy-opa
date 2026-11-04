@@ -13,8 +13,19 @@ when policy lives in Rego, whether served centrally or shipped as a local bundle
   `network_outbound`.
 - `mode: embedded` — loads + verifies a WASM bundle (`sha256`) and evaluates the
   `entrypoint` in-process; optional bundle hot-reload. No egress needed.
-- Decision mapping: OPA `404` (no such rule) → `NotApplicable` ("engine
-  declines"); all other failures fail closed to `Deny`.
+- The input document is `{ "decision_point", "input", "context" }`. At
+  `tool.call.pre`, `input` is the caller's tool arguments and `context` is the
+  request: `context.tool_name`, `context.surface`, `context.transport`,
+  `context.request_id`, `context.session_id` and `context.identity` (with
+  `subject_id`, `trust_level`, `roles`, `groups`, `scopes` and `attributes`).
+  Match the tool on `input.context.tool_name`, never on a field of
+  `input.input`, which the caller controls.
+- Decision mapping: `allow: true` → `Allow`; a `deny` (true, an object with
+  `reason`, or a set of them) → `Deny` with the reason. A result that allows
+  nothing (`allow: false`, no `allow`, an undefined rule) is `NotApplicable`,
+  so the next engine in the chain decides; with
+  `evaluation.on_default_deny: deny` it is `Deny`. OPA `404` (no such
+  package) → `NotApplicable`; all other failures fail closed to `Deny`.
 - `policy_version().hash` is a stable identifier for the loaded policy.
 - The capability `network_outbound` is declared for both modes; only consumed
   in `remote`.
@@ -69,6 +80,7 @@ Embedded mode:
 | `policy_bundle.entrypoint` | string | — | Rego entrypoint (e.g. `mcpg/allow`). |
 | `policy_bundle.reload.enabled` | bool | `true` | Poll the bundle and hot-swap. |
 | `policy_bundle.reload.check_interval_sec` | u64 | `60` | Poll interval (> 0). |
+| `evaluation.on_default_deny` | `not_applicable` \| `deny` | `not_applicable` | What a result that allows nothing means. Set `deny` when OPA is the only engine, or the gateway allows a call no rule allowed. |
 
 Unknown config fields are rejected at parse time; mode/section mismatches fail
 validation with a precise message.

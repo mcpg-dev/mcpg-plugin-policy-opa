@@ -22,6 +22,28 @@ pub struct OpaPolicyConfig {
     /// Required when `mode: embedded`. Ignored otherwise.
     #[serde(default)]
     pub policy_bundle: Option<EmbeddedBundleConfig>,
+
+    /// What a result that allows nothing means.
+    #[serde(default)]
+    pub evaluation: EvaluationConfig,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvaluationConfig {
+    /// A result with no `allow: true` and no `deny` (`allow: false`, no
+    /// `allow` field, or an undefined rule): `not_applicable` lets the next
+    /// engine in the chain decide; `deny` refuses the request.
+    #[serde(default)]
+    pub on_default_deny: OnDefaultDeny,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OnDefaultDeny {
+    #[default]
+    NotApplicable,
+    Deny,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

@@ -767,6 +767,7 @@ impl OpaPolicyPlugin {
             "input": input,
             "context": context,
         });
+        let on_default_deny = self.inner.config.evaluation.on_default_deny;
 
         match &self.inner.backend {
             Backend::Remote(client) => {
@@ -780,7 +781,7 @@ impl OpaPolicyPlugin {
                     client.evaluate_raw(opa_input, &version_for_call).await
                 });
                 match raw {
-                    Ok(result) => decision::parse_decision(result, &version_hash),
+                    Ok(result) => decision::decide(result, &version_hash, on_default_deny),
                     Err(decision) => *decision,
                 }
             }
@@ -800,7 +801,7 @@ impl OpaPolicyPlugin {
                     .runtime
                     .block_on(async move { wasm.evaluate(&opa_input).await });
                 match raw {
-                    Ok(result) => decision::parse_decision(result, &version_hash),
+                    Ok(result) => decision::decide(result, &version_hash, on_default_deny),
                     Err(reason) => {
                         // Embedded runtime errors fail closed.
                         // Stamp with the active

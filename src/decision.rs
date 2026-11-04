@@ -43,6 +43,25 @@ pub(crate) fn parse_decision(result: Value, policy_version_hash: &str) -> Policy
     }
 }
 
+/// [`parse_decision`] under the operator's `evaluation.on_default_deny`: a
+/// result that allows nothing is refused when that is `deny`.
+pub(crate) fn decide(
+    result: Value,
+    policy_version_hash: &str,
+    on_default_deny: crate::config::OnDefaultDeny,
+) -> PolicyDecision {
+    let decision = parse_decision(result, policy_version_hash);
+    if matches!(decision.effect, PolicyEffect::NotApplicable)
+        && on_default_deny == crate::config::OnDefaultDeny::Deny
+    {
+        return PolicyDecision::deny(
+            "opa: no rule allowed the request (on_default_deny: deny)".to_owned(),
+            policy_version_hash,
+        );
+    }
+    decision
+}
+
 fn parse_object(map: serde_json::Map<String, Value>, policy_version_hash: &str) -> PolicyDecision {
     // Explicit deny wins over allow. The deny field can be:
     //   - boolean true  → Deny without reason
@@ -189,6 +208,30 @@ mod tests {
     fn object_with_allow_false_is_not_applicable() {
         let d = parse_decision(json!({"allow": false}), VER);
         assert!(matches!(d.effect, PolicyEffect::NotApplicable));
+    }
+
+    #[test]
+    fn default_deny_refuses_a_result_that_allows_nothing() {
+        use crate::config::OnDefaultDeny;
+        for result in [
+            json!({"allow": false}),
+            json!({}),
+            Value::Null,
+            json!(false),
+        ] {
+            let d = decide(result.clone(), VER, OnDefaultDeny::Deny);
+            assert!(matches!(d.effect, PolicyEffect::Deny), "{result}");
+            let d = decide(result.clone(), VER, OnDefaultDeny::NotApplicable);
+            assert!(matches!(d.effect, PolicyEffect::NotApplicable), "{result}");
+        }
+        let d = decide(json!({"allow": true}), VER, OnDefaultDeny::Deny);
+        assert!(matches!(d.effect, PolicyEffect::Allow));
+        let d = decide(
+            json!({"deny": {"reason": "no"}}),
+            VER,
+            OnDefaultDeny::NotApplicable,
+        );
+        assert!(matches!(d.effect, PolicyEffect::Deny));
     }
 
     #[test]
